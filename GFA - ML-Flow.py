@@ -4,7 +4,7 @@ import numpy as np
 
 from scipy.stats import randint
 from sklearn.model_selection import ParameterSampler
-from MainFunctions.GFAFunctions import Global
+from MainFunctions.GFAFunctions import Global, JustPredict
 from joblib import Parallel, delayed
 import mlflow
 
@@ -43,6 +43,9 @@ dfop0 = pd.read_excel("./InputData/50-400-50/Transient_Checker - 50-400-50_Shri.
 dft1 = pd.read_excel("./InputData/Non-Uniform-22-400-22/green_non uniform.xlsx", header=0)
 dfop1 = pd.read_excel("./InputData/Non-Uniform-22-400-22/transient_non uniform.xlsx", header=0)
 
+# Non-uniform test case to check model generalization # 
+dfop2 = pd.read_excel("./InputData/Non-Uniform-22-200-350-22/transient_non uniform.xlsx",header=0)
+
 input_colx = ['InitialTemperature_C','Time_s']
 output_colx = ['VonMises_MPa']
 
@@ -78,7 +81,7 @@ with mlflow.start_run(run_id='98efa21ec3ca4ae38382f695a2317359'):
             mlflow.log_metrics({'alpha':alpha0,'rmse':Rmse})
             mlflow.log_text(Df.to_csv(index=False),'results.csv')
 
-#%% Optuna Setup (trial is logged into ML-Flow)
+
 #%%
 # Optuna + MLflow: MLP alpha (0.05-0.25) x hidden layer width (100-200)
 import optuna
@@ -119,3 +122,8 @@ with mlflow.start_run(run_name='Optuna-MLP_Non-Uniform (22-400-22)'):
     mlflow.log_metric('best_rmse', study.best_value)
 
 print('Best:', study.best_trial.params, '| RMSE:', study.best_value)
+#%% 
+pDict = {'regressor__MLP_model__activation':'relu','regressor__MLP_model__alpha':0.074,'regressor__MLP_model__verbose':True,'regressor__MLP_model__hidden_layer_sizes':(151,151)}
+Df, alpha0, Rmse, ML_Model = Global(dft1,dfop1,input_colx,output_colx,'MLP',pDict)
+dfnew = JustPredict(dftest=dfop2,model=ML_Model,alpha=1.49999)
+dfnew
