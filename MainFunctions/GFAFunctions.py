@@ -71,7 +71,29 @@ def Global(dftrain:pd.DataFrame,dfopt:pd.DataFrame,input_cols:list,output_cols:l
     dfopt['Predicted_Stress'], alpha = convoluteOptimize(dfopt,chosen_model)
     dfopt['Squared Error'] = (dfopt['Predicted_Stress'] - dfopt[output_cols[0]])**2
     rmse = ((dfopt['Squared Error']).mean())**0.5
-    return dfopt, alpha, rmse
+    return dfopt, alpha, rmse, chosen_model
+
+def JustPredict(dftest:pd.DataFrame, alpha:float, model) -> pd.DataFrame:
+    # dftest is assumed to be in this format where column names are: ['InitialTemperature_C','Time_s','VonMises_MPa']
+    time_col = 'Time_s'
+    temp_col = 'InitialTemperature_C'
+    def convoluteOptimize(df_convolution:pd.DataFrame, ml_model) -> np.ndarray:
+            # Time in s -> Time_s
+            # Temperature in Celsius -> InitialTemperature_C
+            tmatrix = np.zeros(shape=(len(df_convolution)-1,len(df_convolution)))
+            for i in range(tmatrix.shape[0]):
+                time = (df_convolution[time_col][i:] - df_convolution[time_col][i]).to_numpy()
+                temp = df_convolution[temp_col][i]
+                temp_diff = df_convolution[temp_col][i+1] - df_convolution[temp_col][i]
+                df_temporary = pd.DataFrame({temp_col:temp,time_col:time})
+                tmatrix[i][i:] = ml_model.predict(df_temporary)*temp_diff
+            conv_stress = tmatrix.sum(axis=0)
+            return conv_stress
+    
+    dftest['Predicted Stress'] = alpha*convoluteOptimize(dftest,model)
+    return dftest
+    
+
 
 
 
