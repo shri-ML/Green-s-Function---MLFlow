@@ -75,6 +75,7 @@ def Global(dftrain:pd.DataFrame,dfopt:pd.DataFrame,input_cols:list,output_cols:l
 
 def JustPredict(dftest:pd.DataFrame, alpha:float, model) -> pd.DataFrame:
     # dftest is assumed to be in this format where column names are: ['InitialTemperature_C','Time_s','VonMises_MPa']
+    # alpha is the scaling factor from the green's function paper 
     time_col = 'Time_s'
     temp_col = 'InitialTemperature_C'
     def convoluteOptimize(df_convolution:pd.DataFrame, ml_model) -> np.ndarray:

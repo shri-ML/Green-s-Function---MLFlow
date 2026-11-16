@@ -26,6 +26,7 @@ import mlflow
 #   DataFrame : T1 → T2 → T1 with predicted stress and error columns
 #   alpha     : best scalar from optimization
 #   RMSE      : root mean squared error of predictions
+#   model     : ML model trained on Green's function data
 #
 # 'space' is a dict passed to ParameterSampler. Each key is a
 #   hyperparameter name; each value is a range (e.g. uniform(0,1))
@@ -33,8 +34,25 @@ import mlflow
 #   random combinations from it.
 ########################################
  
-#%%
-# Input Files, Column Names for Data
+ 
+########################################
+#        READ BEFORE RUNNING           #
+########################################
+# JustFit (..) -> Predicts stress using a given machine learning model that has
+# already been trained on Green Function data (model output from Global()) &  
+# alpha (can use the alpha output from Global()).
+#
+# JustFit(dftest, alpha, model)
+#   dftest      : Any temperature transient data with columns in the form: ['InitialTemperature_C','Time_s','VonMises_MPa']
+#   alpha       : Scaling factor (can be found from Global() or can be any float value)
+#   model       : ML model trained on Green's function data
+#
+# Returns: (DataFrame, alpha, RMSE)
+#   DataFrame : dftest with predicted stress and error columns
+#
+########################################
+
+# Input Files, Column Names for Data  #
 # Uniform Temperature Across geometry # 
 dft0 = pd.read_excel("./InputData/50-400-50/vonMises_25s_600s_Shri.xlsx",header=0)
 dfop0 = pd.read_excel("./InputData/50-400-50/Transient_Checker - 50-400-50_Shri.xlsx",header=0)
@@ -49,6 +67,8 @@ dfop2 = pd.read_excel("./InputData/Non-Uniform-22-200-350-22/transient_non unifo
 input_colx = ['InitialTemperature_C','Time_s']
 output_colx = ['VonMises_MPa']
 
+#%%
+# Parameter Sampler # 
 # Sample Parameters  
 spaceRF = {'max_depth':randint(10,100),'n_estimators':randint(100,300),'random_state':[42],'verbose':[True]}
 spaceMLP = {'regressor__MLP_model__activation':['relu'],'regressor__MLP_model__alpha':[0.01],'regressor__MLP_model__verbose':[True],'regressor__MLP_model__hidden_layer_sizes':[(100,100)]}
@@ -61,7 +81,7 @@ listOfComb1 = list(ParameterSampler(spaceMLP,n_iter=1,random_state=42))
 # For Uniform Temperature #
 # Set Experiment Name -> Start Run -> Start Run as a child of Parent 
 mlflow.set_experiment('GFA-Runs')
-with mlflow.start_run(run_id='d13162da16ea4253b6046f58923bfd2e'):
+with mlflow.start_run(run_id='Uniform Temperature'):
     for i in listOfComb1:
         with mlflow.start_run(nested=True,run_name='MLP'):
             Df1, alpha1, Rmse1 = Global(dft0,dfop0,input_colx,output_colx,'MLP',i)
@@ -73,14 +93,13 @@ with mlflow.start_run(run_id='d13162da16ea4253b6046f58923bfd2e'):
 # For Non-Uniform Temperature #
 # Set Experiment Name -> Start Run -> Start Run as a child of Parent 
 mlflow.set_experiment('GFA-Runs')
-with mlflow.start_run(run_id='98efa21ec3ca4ae38382f695a2317359'):
+with mlflow.start_run(run_id='Non-Uniform Temperature'):
     for j in listOfComb1:
         with mlflow.start_run(nested=True,run_name='ML_Non-Uniform (22-400-22)'):
             Df, alpha0, Rmse = Global(dft1,dfop1,input_colx,output_colx,'MLP',j)
             mlflow.log_params(i)
             mlflow.log_metrics({'alpha':alpha0,'rmse':Rmse})
             mlflow.log_text(Df.to_csv(index=False),'results.csv')
-
 
 #%%
 # Optuna + MLflow: MLP alpha (0.05-0.25) x hidden layer width (100-200)
@@ -122,8 +141,14 @@ with mlflow.start_run(run_name='Optuna-MLP_Non-Uniform (22-400-22)'):
     mlflow.log_metric('best_rmse', study.best_value)
 
 print('Best:', study.best_trial.params, '| RMSE:', study.best_value)
+
 #%% 
-pDict = {'regressor__MLP_model__activation':'relu','regressor__MLP_model__alpha':0.074,'regressor__MLP_model__verbose':True,'regressor__MLP_model__hidden_layer_sizes':(151,151)}
-Df, alpha0, Rmse, ML_Model = Global(dft1,dfop1,input_colx,output_colx,'MLP',pDict)
-dfnew = JustPredict(dftest=dfop2,model=ML_Model,alpha=1.49999)
-dfnew
+mlflow.set_experiment('GFA-Runs')
+with mlflow.start_run(run_id='Non-Uniform-22-200-350-22'):
+    with mlflow.start_run(run_name="Non-Uniform Test",nested=True):
+        pDict = {'regressor__MLP_model__activation':'relu','regressor__MLP_model__alpha':0.074,'regressor__MLP_model__verbose':True,'regressor__MLP_model__hidden_layer_sizes':(151,151)}
+        Df, alpha0, Rmse, ML_Model = Global(dft1,dfop1,input_colx,output_colx,'MLP',pDict)
+        dfnew = JustPredict(dftest=dfop2,model=ML_Model,alpha=1.49999)
+        mlflow.log_params(pDict)
+        dfnew.to_csv("./.temp/temp1.csv")
+        mlflow.log_artifact("./.temp/temp1.csv",'Results.csv')
