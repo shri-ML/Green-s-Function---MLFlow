@@ -67,7 +67,6 @@ dfop2 = pd.read_excel("./InputData/Non-Uniform-22-200-350-22/transient_non unifo
 input_colx = ['InitialTemperature_C','Time_s']
 output_colx = ['VonMises_MPa']
 
-#%%
 # Parameter Sampler # 
 # Sample Parameters  
 spaceRF = {'max_depth':randint(10,100),'n_estimators':randint(100,300),'random_state':[42],'verbose':[True]}
@@ -81,10 +80,10 @@ listOfComb1 = list(ParameterSampler(spaceMLP,n_iter=1,random_state=42))
 # For Uniform Temperature #
 # Set Experiment Name -> Start Run -> Start Run as a child of Parent 
 mlflow.set_experiment('GFA-Runs')
-with mlflow.start_run(run_id='Uniform Temperature'):
+with mlflow.start_run(run_name='Uniform Temperature'):
     for i in listOfComb1:
         with mlflow.start_run(nested=True,run_name='MLP'):
-            Df1, alpha1, Rmse1 = Global(dft0,dfop0,input_colx,output_colx,'MLP',i)
+            Df1, alpha1, Rmse1, model_ = Global(dft0,dfop0,input_colx,output_colx,'MLP',i)
             mlflow.log_params(i)
             mlflow.log_metrics({'alpha':alpha1,'rmse':Rmse1})
             mlflow.log_text(Df1.to_csv(index=False),'results.csv')
@@ -93,10 +92,10 @@ with mlflow.start_run(run_id='Uniform Temperature'):
 # For Non-Uniform Temperature #
 # Set Experiment Name -> Start Run -> Start Run as a child of Parent 
 mlflow.set_experiment('GFA-Runs')
-with mlflow.start_run(run_id='Non-Uniform Temperature'):
+with mlflow.start_run(run_name='Non-Uniform Temperature'):
     for j in listOfComb1:
         with mlflow.start_run(nested=True,run_name='ML_Non-Uniform (22-400-22)'):
-            Df, alpha0, Rmse = Global(dft1,dfop1,input_colx,output_colx,'MLP',j)
+            Df, alpha0, Rmse, model_ = Global(dft1,dfop1,input_colx,output_colx,'MLP',j)
             mlflow.log_params(i)
             mlflow.log_metrics({'alpha':alpha0,'rmse':Rmse})
             mlflow.log_text(Df.to_csv(index=False),'results.csv')
@@ -122,7 +121,7 @@ def objective(trial):
     }
 
     with mlflow.start_run(nested=True, run_name=f'Trial-{trial.number}'):
-        Df, alpha0, Rmse = Global(dft1, dfop1, input_colx, output_colx, 'MLP', params)
+        Df, alpha0, Rmse, model_ = Global(dft1, dfop1, input_colx, output_colx, 'MLP', params)
         mlflow.log_params(params)
         mlflow.log_metrics({'alpha': alpha0, 'rmse': Rmse})
         mlflow.log_text(Df.to_csv(index=False), 'results.csv')
@@ -144,7 +143,7 @@ print('Best:', study.best_trial.params, '| RMSE:', study.best_value)
 
 #%% 
 mlflow.set_experiment('GFA-Runs')
-with mlflow.start_run(run_id='Non-Uniform-22-200-350-22'):
+with mlflow.start_run(run_name='Non-Uniform-22-200-350-22'):
     with mlflow.start_run(run_name="Non-Uniform Test",nested=True):
         pDict = {'regressor__MLP_model__activation':'relu','regressor__MLP_model__alpha':0.074,'regressor__MLP_model__verbose':True,'regressor__MLP_model__hidden_layer_sizes':(151,151)}
         Df, alpha0, Rmse, ML_Model = Global(dft1,dfop1,input_colx,output_colx,'MLP',pDict)
